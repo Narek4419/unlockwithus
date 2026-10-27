@@ -9,7 +9,7 @@ $__user = current_user();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= APP_NAME ?></title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=<?= @filemtime(__DIR__ . '/../public/assets/css/style.css') ?: 1 ?>">
     <link rel="icon" href="/assets/img/logo.png">
 </head>
 <body>
