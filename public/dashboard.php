@@ -3,11 +3,28 @@ require_once __DIR__ . '/../includes/auth.php';
 $user = require_login();
 $db = get_db();
 
-$error = null;
-$orderResult = null;
+// A fresh one-time token for the order form. It gets invalidated the instant
+// it's used, so the exact same submission can never be charged twice even if
+// the browser resends it (refresh, double-click, slow network retry, etc.)
+if (empty($_SESSION['order_token'])) {
+    $_SESSION['order_token'] = bin2hex(random_bytes(16));
+}
 
 // Handle new order submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'place_order') {
+    $submittedToken = (string) ($_POST['order_token'] ?? '');
+
+    if (!hash_equals($_SESSION['order_token'], $submittedToken)) {
+        // Token missing, wrong, or already used = this is a duplicate/stale
+        // resubmission. Ignore it completely: no charge, no API call.
+        header('Location: /dashboard.php');
+        exit;
+    }
+
+    // Invalidate the token immediately, before doing anything else, so any
+    // duplicate request carrying the same token is rejected by the check above.
+    $_SESSION['order_token'] = bin2hex(random_bytes(16));
+
     $serviceId = (int) ($_POST['service_id'] ?? 0);
     $imei = preg_replace('/[^a-zA-Z0-9]+/', '', $_POST['imei'] ?? '');
 
@@ -15,10 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $stmt->execute([$serviceId]);
     $service = $stmt->fetch();
 
-    if (!$service) {
-        $error = 'dash_imei_invalid';
-    } elseif (strlen($imei) < 11 || strlen($imei) > 15) {
-        $error = 'dash_imei_invalid';
+    if (!$service || strlen($imei) < 11 || strlen($imei) > 15) {
+        $_SESSION['flash_error'] = 'dash_imei_invalid';
     } else {
         // Re-fetch fresh balance
         $stmt = $db->prepare('SELECT balance FROM users WHERE id = ? FOR UPDATE');
@@ -29,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if ($freshBalance < $price) {
             $db->rollBack();
-            $error = 'dash_insufficient';
+            $_SESSION['flash_error'] = 'dash_insufficient';
         } else {
             // Deduct balance and create pending order
             $db->prepare('UPDATE users SET balance = balance - ? WHERE id = ?')->execute([$price, $user['id']]);
@@ -49,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($apiResult['ok']) {
                 $db->prepare('UPDATE orders SET status = ?, result = ? WHERE id = ?')
                     ->execute(['success', $apiResult['result'], $orderId]);
-                $orderResult = ['ok' => true, 'text' => $apiResult['result']];
+                $_SESSION['flash_order_result'] = ['ok' => true, 'text' => $apiResult['result']];
             } else {
                 // Refund automatically
                 $db->beginTransaction();
@@ -59,16 +74,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $db->prepare('INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)')
                     ->execute([$user['id'], $price, 'order_refund', 'Refund: ' . $service['name'] . ' (' . $imei . ') — ' . $apiResult['error']]);
                 $db->commit();
-                $orderResult = ['ok' => false, 'text' => $apiResult['error']];
+                $_SESSION['flash_order_result'] = ['ok' => false, 'text' => $apiResult['error']];
             }
-
-            // Refresh user data
-            $stmt = $db->prepare('SELECT * FROM users WHERE id = ?');
-            $stmt->execute([$user['id']]);
-            $user = $stmt->fetch();
         }
     }
+
+    // Always redirect after a POST (Post/Redirect/Get). This means refreshing
+    // the resulting page, or the browser silently resending the request,
+    // can never resubmit the order form again.
+    header('Location: /dashboard.php');
+    exit;
 }
+
+// Pull one-time flash messages left by the redirect above (if any)
+$error = $_SESSION['flash_error'] ?? null;
+unset($_SESSION['flash_error']);
+$orderResult = $_SESSION['flash_order_result'] ?? null;
+unset($_SESSION['flash_order_result']);
 
 // Load active services for the order form
 $services = $db->query('SELECT * FROM services WHERE active = TRUE ORDER BY id ASC')->fetchAll();
@@ -117,8 +139,9 @@ $statusBadge = function (string $status) {
     <?php if ($error): ?>
         <div class="alert alert-error"><?= t($error) ?></div>
     <?php endif; ?>
-    <form method="POST">
+    <form method="POST" onsubmit="var b=this.querySelector('button[type=submit]'); if(b.dataset.sent){return false;} b.dataset.sent='1'; b.disabled=true;">
         <input type="hidden" name="action" value="place_order">
+        <input type="hidden" name="order_token" value="<?= e($_SESSION['order_token']) ?>">
         <div class="form-group">
             <label><?= t('dash_select_service') ?></label>
             <select name="service_id" required>
