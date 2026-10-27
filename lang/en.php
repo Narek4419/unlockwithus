@@ -37,6 +37,7 @@ return [
     'register_error_password_short' => 'Password must be at least 6 characters.',
     'register_success' => 'Account created successfully! You can now log in.',
 
+    'back_to_dashboard' => 'Back to Dashboard',
     'dash_balance' => 'Your Balance',
     'dash_add_funds' => 'Need to add funds?',
     'dash_add_funds_text' => 'Contact the administrator to top up your balance (minimum $5):',
