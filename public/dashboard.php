@@ -216,7 +216,26 @@ $statusBadge = function (string $status) {
 <?php endif; ?>
 </div>
 
-<div id="loadingOverlay" class="loading-overlay" style="display:none;">
+<style>
+#loadingOverlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999;
+    background: rgba(20, 40, 20, 0.88); align-items: center; justify-content: center;
+}
+#loadingOverlay .loading-box {
+    background: #fff; border-radius: 12px; padding: 36px 30px; max-width: 420px; width: 90%;
+    text-align: center; border-top: 6px solid #F5A623;
+}
+#loadingOverlay h3 { color: #1E7A34; margin: 16px 0 8px; }
+#loadingOverlay p { margin: 6px 0; color: #444; }
+#loadingOverlay .loading-warn { color: #D9534F; font-weight: 700; margin-top: 14px; }
+#loadingOverlay .spinner {
+    width: 56px; height: 56px; margin: 0 auto; border: 6px solid #E0E8DA;
+    border-top-color: #7DC242; border-radius: 50%; animation: uwu-spin 0.9s linear infinite;
+}
+@keyframes uwu-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div id="loadingOverlay">
     <div class="loading-box">
         <div class="spinner"></div>
         <h3><?= t('dash_loading_title') ?></h3>
@@ -231,7 +250,10 @@ function startOrder(form) {
     btn.dataset.sent = '1';
     btn.disabled = true;
     document.getElementById('loadingOverlay').style.display = 'flex';
-    return true;
+    // Wait a moment so the loading popup is painted on screen first,
+    // then send the order.
+    setTimeout(function () { form.submit(); }, 80);
+    return false;
 }
 window.addEventListener('pageshow', function (e) {
     if (e.persisted) { window.location.reload(); }
