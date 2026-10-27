@@ -25,14 +25,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     // duplicate request carrying the same token is rejected by the check above.
     $_SESSION['order_token'] = bin2hex(random_bytes(16));
 
+    // Keep running even if the client closes the tab, so the order always
+    // finishes (or gets refunded) properly.
+    ignore_user_abort(true);
+    set_time_limit(120);
+
     $serviceId = (int) ($_POST['service_id'] ?? 0);
-    $imei = preg_replace('/[^a-zA-Z0-9]+/', '', $_POST['imei'] ?? '');
+    // IMEI or Serial Number: letters and digits only, uppercase
+    $imei = strtoupper(preg_replace('/[^a-zA-Z0-9]+/', '', $_POST['imei'] ?? ''));
 
     $stmt = $db->prepare('SELECT * FROM services WHERE id = ? AND active = TRUE');
     $stmt->execute([$serviceId]);
     $service = $stmt->fetch();
 
-    if (!$service || strlen($imei) < 11 || strlen($imei) > 15) {
+    if (!$service || strlen($imei) < 10 || strlen($imei) > 20) {
         $_SESSION['flash_error'] = 'dash_imei_invalid';
     } else {
         // Re-fetch fresh balance
@@ -139,7 +145,7 @@ $statusBadge = function (string $status) {
     <?php if ($error): ?>
         <div class="alert alert-error"><?= t($error) ?></div>
     <?php endif; ?>
-    <form method="POST" onsubmit="var b=this.querySelector('button[type=submit]'); if(b.dataset.sent){return false;} b.dataset.sent='1'; b.disabled=true;">
+    <form method="POST" onsubmit="return startOrder(this);">
         <input type="hidden" name="action" value="place_order">
         <input type="hidden" name="order_token" value="<?= e($_SESSION['order_token']) ?>">
         <div class="form-group">
@@ -152,7 +158,7 @@ $statusBadge = function (string $status) {
         </div>
         <div class="form-group">
             <label><?= t('dash_imei') ?></label>
-            <input type="text" name="imei" required maxlength="20" placeholder="e.g. 354442067957452">
+            <input type="text" name="imei" required maxlength="20" placeholder="354442067957452 / F2LXXXXXXXXX">
         </div>
         <button type="submit" class="btn" style="width:100%"><?= t('dash_submit') ?></button>
     </form>
@@ -209,5 +215,27 @@ $statusBadge = function (string $status) {
     </table>
 <?php endif; ?>
 </div>
+
+<div id="loadingOverlay" class="loading-overlay" style="display:none;">
+    <div class="loading-box">
+        <div class="spinner"></div>
+        <h3><?= t('dash_loading_title') ?></h3>
+        <p><?= t('dash_loading_text') ?></p>
+        <p class="loading-warn"><?= t('dash_loading_warn') ?></p>
+    </div>
+</div>
+<script>
+function startOrder(form) {
+    var btn = form.querySelector('button[type=submit]');
+    if (btn.dataset.sent) { return false; }
+    btn.dataset.sent = '1';
+    btn.disabled = true;
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    return true;
+}
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { window.location.reload(); }
+});
+</script>
 
 <?php require __DIR__ . '/../templates/footer.php'; ?>
