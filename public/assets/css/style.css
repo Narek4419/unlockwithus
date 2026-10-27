@@ -204,3 +204,23 @@ footer a { color: var(--orange); font-weight: 600; }
 .stat-card .label { color: #666; font-size: 0.9em; }
 
 .table-wrap { overflow-x: auto; }
+
+.loading-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(34, 51, 34, 0.85);
+    align-items: center; justify-content: center;
+}
+.loading-box {
+    background: var(--white); border-radius: 12px; padding: 36px 30px;
+    max-width: 420px; width: 90%; text-align: center;
+    border-top: 6px solid var(--orange);
+}
+.loading-box h3 { color: var(--green-dark); margin: 16px 0 8px; }
+.loading-box p { margin: 6px 0; color: #444; }
+.loading-box .loading-warn { color: var(--danger); font-weight: 700; margin-top: 14px; }
+.spinner {
+    width: 56px; height: 56px; margin: 0 auto;
+    border: 6px solid var(--border); border-top-color: var(--green);
+    border-radius: 50%; animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
