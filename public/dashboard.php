@@ -101,28 +101,8 @@ unset($_SESSION['flash_order_result']);
 // Load active services for the order form
 $services = $db->query('SELECT * FROM services WHERE active = TRUE ORDER BY id ASC')->fetchAll();
 
-// Load this user's order history
-$stmt = $db->prepare('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50');
-$stmt->execute([$user['id']]);
-$orders = $stmt->fetchAll();
-
-// Load this user's transaction/balance history
-$stmt = $db->prepare('SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50');
-$stmt->execute([$user['id']]);
-$transactions = $stmt->fetchAll();
-
 require __DIR__ . '/../templates/header.php';
 
-$statusBadge = function (string $status) {
-    $map = [
-        'success' => 'status_success',
-        'failed' => 'status_failed',
-        'refunded' => 'status_refunded',
-        'pending' => 'status_pending',
-    ];
-    $class = 'badge-' . $status;
-    return '<span class="badge ' . $class . '">' . t($map[$status] ?? $status) . '</span>';
-};
 ?>
 
 <div class="balance-box">
@@ -164,56 +144,9 @@ $statusBadge = function (string $status) {
     </form>
 </div>
 
-<h3 class="section-title"><?= t('dash_order_history') ?></h3>
-<div class="table-wrap">
-<?php if (count($orders) === 0): ?>
-    <p><?= t('dash_no_orders') ?></p>
-<?php else: ?>
-    <table>
-        <tr>
-            <th><?= t('dash_col_date') ?></th>
-            <th><?= t('dash_col_service') ?></th>
-            <th><?= t('dash_col_imei') ?></th>
-            <th><?= t('dash_col_price') ?></th>
-            <th><?= t('dash_col_status') ?></th>
-            <th><?= t('dash_col_result') ?></th>
-        </tr>
-        <?php foreach ($orders as $o): ?>
-            <tr>
-                <td><?= e(date('Y-m-d H:i', strtotime($o['created_at']))) ?></td>
-                <td><?= e($o['service_name']) ?></td>
-                <td><?= e($o['imei']) ?></td>
-                <td><?= money((float) $o['price']) ?></td>
-                <td><?= $statusBadge($o['status']) ?></td>
-                <td class="result-text"><?= e((string) $o['result']) ?></td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
-<?php endif; ?>
-</div>
-
-<h3 class="section-title"><?= t('dash_funding_history') ?></h3>
-<div class="table-wrap">
-<?php if (count($transactions) === 0): ?>
-    <p><?= t('dash_no_transactions') ?></p>
-<?php else: ?>
-    <table>
-        <tr>
-            <th><?= t('dash_col_date') ?></th>
-            <th><?= t('dash_col_amount') ?></th>
-            <th><?= t('dash_col_description') ?></th>
-        </tr>
-        <?php foreach ($transactions as $tx): ?>
-            <tr>
-                <td><?= e(date('Y-m-d H:i', strtotime($tx['created_at']))) ?></td>
-                <td style="color: <?= $tx['amount'] >= 0 ? '#1E7A34' : '#D9534F' ?>; font-weight:700;">
-                    <?= $tx['amount'] >= 0 ? '+' : '' ?><?= money((float) $tx['amount']) ?>
-                </td>
-                <td><?= e((string) $tx['description']) ?></td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
-<?php endif; ?>
+<div class="history-buttons" style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin:30px 0;">
+    <a href="/orders.php" class="btn"><?= t('dash_order_history') ?></a>
+    <a href="/payments.php" class="btn btn-orange"><?= t('dash_funding_history') ?></a>
 </div>
 
 <style>
